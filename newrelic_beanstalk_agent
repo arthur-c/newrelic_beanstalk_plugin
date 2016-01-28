@@ -1,0 +1,64 @@
+#! /usr/bin/env ruby
+
+#
+# This is an example agent which generates synthetic data.
+# A 1mHz (one cycle every 16 minutes) sin+1, cos+1 and sin+5 wave is generated,
+# using the Unix epoch as the base.
+#
+
+require "rubygems"
+require "bundler/setup"
+require "newrelic_plugin"
+require "beanstalk-client"
+
+module NewRelicBeanstalk
+
+        class Agent < NewRelic::Plugin::Agent::Base
+           agent_guid "com.runmyprocess.beanstalk"
+           agent_version "1.0.0"
+           agent_config_options :name,:label
+           agent_human_labels("Beanstalk") { "#{agent_label}" }
+         
+           def agent_label
+            return name
+           end
+
+           def uri
+              @agent_options = NewRelic::Plugin::Config.config.options
+              host = @agent_options["host"] 
+              uri = "#{host["host"]}:#{host["port"]}"
+              return uri
+           end
+
+           def poll_cycle
+               b = Beanstalk::Connection.new(uri)
+               
+                  st=b.stats_tube agent_label 
+                   st.keys.sort.each do |k|
+	             if k == "current-watching"
+                     	report_metric(k,"watchers",st[k])
+		     else
+                        report_metric(k,"messages",st[k])
+		     end	
+                   end
+           end
+        end         
+         
+            NewRelic::Plugin::Config.config.agents.keys.each do |agent|
+               NewRelic::Plugin::Setup.install_agent agent, NewRelicBeanstalk
+            end 
+         
+            NewRelic::Plugin::Run.setup_and_run
+
+end
+
+
+
+
+
+
+
+
+
+
+
